@@ -1,9 +1,12 @@
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
-const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
+const { SSEServerTransport } = require("@modelcontextprotocol/sdk/server/sse.js");
 const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
 const { google } = require("googleapis");
+const express = require("express");
 
-// Configuração das Credenciais via Variável de Ambiente
+const app = express();
+let transport;
+
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.readonly"],
@@ -41,9 +44,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-async function main() {
-  const transport = new StdioServerTransport();
+app.get("/sse", async (req, res) => {
+  transport = new SSEServerTransport("/messages", res);
   await server.connect(transport);
-}
+});
 
-main().catch(console.error);
+app.post("/messages", async (req, res) => {
+  await transport.handlePostMessage(req, res);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
